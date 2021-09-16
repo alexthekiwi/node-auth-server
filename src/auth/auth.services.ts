@@ -11,21 +11,25 @@ function getSecret(): string|undefined {
 function generateAccessToken(userId: Number) {
     const secret = getSecret();
 
+    const expiresIn = process.env.ACCESS_TOKEN_EXPIRY ?? '3 hours';
+
     if (!secret) {
         return null;
     }
 
-    return jwt.sign({ id: userId }, secret, { expiresIn: '3 hours' });
+    return jwt.sign({ id: userId }, secret, { expiresIn });
 }
 
 function generateRefreshToken(userId: Number) {
     const secret = getSecret();
 
+    const expiresIn = process.env.REFRESH_TOKEN_EXPIRY ?? '3 days';
+
     if (!secret) {
         return null;
     }
 
-    return jwt.sign({ id: userId }, secret, { expiresIn: '3 days' });
+    return jwt.sign({ id: userId }, secret, { expiresIn });
 }
 
 export async function generateTokens(user: User): Promise<Token|null> {
