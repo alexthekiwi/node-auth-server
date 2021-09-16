@@ -1,4 +1,4 @@
-import express, { Express } from 'express';
+import express, { Express, Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 
 import userRouter from './users/user.router';
@@ -17,6 +17,17 @@ app.use(cookieParser());
 app.use('/users', userRouter);
 app.use('/auth', authRouter);
 app.get('/me', authenticated, me);
+
+// Default route, maybe make this a docs page?
+app.get('/', (req: Request, res: Response) => {
+    res.send(`
+        <html>
+            <body style="display: flex; justify-content: center; align-items: center;">
+                <h1 style="font-family: sans-serif;">Start making some requests 😘</h1>
+            </body>
+        </html>
+    `);
+})
 
 app.listen(app.get("port"), () => {
     console.log(
