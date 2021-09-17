@@ -12,6 +12,12 @@ cp .env.example .env
 npm install
 ```
 
+Create your database, then run..
+```
+npx prisma db push
+```
+
+Lastly, for a dev environment:
 ```
 npm run dev
 ```
@@ -24,3 +30,4 @@ npm run build
 ```
 npm run serve
 ```
+TODO: Need some info here about db migrations in production.
