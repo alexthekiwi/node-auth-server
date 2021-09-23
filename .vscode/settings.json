@@ -1,0 +1,8 @@
+{
+    "appService.zipIgnorePattern": [
+        "node_modules{,/**}",
+        ".vscode{,/**}"
+    ],
+    "appService.defaultWebAppToDeploy": "/subscriptions/334c8363-58b0-4709-a59e-23a20dd99d4b/resourceGroups/Test/providers/Microsoft.Web/sites/star-auth",
+    "appService.deploySubpath": "."
+}
