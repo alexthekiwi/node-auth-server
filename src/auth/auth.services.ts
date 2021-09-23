@@ -112,7 +112,7 @@ export function withCookies(res: Response, token: Token | undefined = undefined)
     const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        domain: process.env.COOKIE_DOMAIN || 'localhost',
+        domain: '.alexclark.co.nz',
     }
 
     if (token) {
