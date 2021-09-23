@@ -112,7 +112,7 @@ export function withCookies(res: Response, token: Token | undefined = undefined)
     const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
+        domain: process.env.COOKIE_DOMAIN || 'localhost',
     }
 
     if (token) {

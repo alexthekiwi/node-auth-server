@@ -25,7 +25,6 @@ app.get('/me', authenticated, me);
 
 // Default route, maybe make this a docs page?
 app.get('/', (req: Request, res: Response) => {
-    console.log(process.env.DATABASE_URL);
     res.send(`
         <html>
             <body style="display: flex; justify-content: center; align-items: center;">
