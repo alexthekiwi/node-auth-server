@@ -94,6 +94,6 @@ export async function store(req: Request, res: Response) {
         if (err instanceof Prisma.PrismaClientKnownRequestError) {
             return res.status(400).send(err.message);
         }
-        return res.status(500).send('Uh oh, something went wrong.');
+        return res.status(500).send(JSON.stringify(err));
     }
 }
