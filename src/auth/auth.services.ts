@@ -11,6 +11,7 @@ function getSecret(): string|undefined {
 function generateAccessToken(userId: Number) {
     const secret = getSecret();
 
+    // TODO: Make this an end of day expiry, regardless of current time
     const expiresIn = process.env.ACCESS_TOKEN_EXPIRY ?? '3 hours';
 
     if (!secret) {
@@ -23,6 +24,7 @@ function generateAccessToken(userId: Number) {
 function generateRefreshToken(userId: Number) {
     const secret = getSecret();
 
+    // TODO: Make this an end of day expiry, regardless of current time
     const expiresIn = process.env.REFRESH_TOKEN_EXPIRY ?? '3 days';
 
     if (!secret) {
@@ -113,9 +115,13 @@ export function withCookies(res: Response, token: Token | undefined = undefined)
         domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
     }
 
-    return res
-        .cookie('access_token', token?.accessToken || undefined, cookieOptions)
-        .cookie('refresh_token', token?.refreshToken || undefined, cookieOptions)
+    if (token) {
+        return res
+            .cookie('access_token', token.accessToken, cookieOptions)
+            .cookie('refresh_token', token.refreshToken, cookieOptions)
+    } else {
+        return res.clearCookie('access_token').clearCookie('refresh_token');
+    }
 }
 
 /**
@@ -128,6 +134,7 @@ export function parseRequestTokens(req: Request): { accessToken: string|undefine
     // First check the request headers for a bearer token
     if (req.headers.authorization) {
         const bearerToken = req.headers.authorization.split('Bearer ');
+
         if (bearerToken.length > 1) {
             accessToken = bearerToken[1]
         }

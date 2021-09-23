@@ -28,7 +28,7 @@ export async function store(req: Request, res: Response) {
 
     // Find a user
     const user = await prisma.user.findUnique({
-        where: { email }
+        where: { email },
     });
 
     // Abort if no match by email
@@ -45,7 +45,10 @@ export async function store(req: Request, res: Response) {
             const token = await generateTokens(user);
 
             if (token) {
-                return withCookies(res, token).send({ user, token })
+                const { id, name, email } = user;
+                const sanitisedUser = {id, name, email};
+
+                return withCookies(res, token).send({ user: sanitisedUser, token })
             } else {
                 return loginFail(res);
             }

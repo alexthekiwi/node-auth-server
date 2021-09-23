@@ -1,5 +1,6 @@
 import express, { Express, Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 
 import userRouter from './users/user.router';
 import authRouter from './auth/auth.router';
@@ -13,6 +14,10 @@ app.set("env", process.env.NODE_ENV || 'local');
 
 app.use(express.json());
 app.use(cookieParser());
+app.use(cors({
+    credentials: true,
+    origin: true,
+}));
 
 app.use('/users', userRouter);
 app.use('/auth', authRouter);
