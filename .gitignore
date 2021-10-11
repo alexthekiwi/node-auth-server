@@ -6,3 +6,6 @@ node_modules
 
 # Don't need to track compiled files
 dist
+
+# System files
+.DS_Store
