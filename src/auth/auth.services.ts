@@ -1,127 +1,122 @@
 import jwt from 'jsonwebtoken';
-import { User, Token } from '@prisma/client';
+import { User, AccessToken, RefreshToken } from '@prisma/client';
 import { Request, Response } from 'express';
+import { endOfDay, addMilliseconds, differenceInMilliseconds } from 'date-fns';
+import ms from 'ms';
 
 import { prisma } from '../lib/prisma';
+import { getSecret } from '../lib/secret';
 
-function getSecret(): string|undefined {
-    return process.env.TOKEN_SECRET;
-}
-
-function generateAccessToken(userId: Number) {
+/**
+ * Generates a new access token
+ */
+export async function generateAccessToken(userId: User['id']): Promise<AccessToken> {
     const secret = getSecret();
 
-    // TODO: Make this an end of day expiry, regardless of current time
-    const expiresIn = process.env.ACCESS_TOKEN_EXPIRY ?? '3 hours';
+    const tokenLifetime = process.env.ACCESS_TOKEN_EXPIRY ?? '6 hours';
 
-    if (!secret) {
-        return null;
+    const { expiresIn, expiresAt } = generateExpiryTime(tokenLifetime);
+
+    const tokenValue = jwt.sign({ id: userId }, secret, { expiresIn: `${expiresIn} ms` });
+
+    // Make sure we don't try create a duplicate token value in the db
+    const existing = await prisma.accessToken.findUnique({ where: { value: tokenValue } });
+
+    if (existing) {
+        return existing;
     }
 
-    return jwt.sign({ id: userId }, secret, { expiresIn });
-}
-
-function generateRefreshToken(userId: Number) {
-    const secret = getSecret();
-
-    // TODO: Make this an end of day expiry, regardless of current time
-    const expiresIn = process.env.REFRESH_TOKEN_EXPIRY ?? '3 days';
-
-    if (!secret) {
-        return null;
-    }
-
-    return jwt.sign({ id: userId }, secret, { expiresIn });
-}
-
-export async function generateTokens(user: User): Promise<Token|null> {
-    const accessToken = generateAccessToken(user.id);
-    const refreshToken = generateRefreshToken(user.id);
-
-    if (!accessToken || !refreshToken) return null;
-
-    const token = await prisma.token.create({
+    // TODO: This can error by creating duplicates somehow?
+    const token = await prisma.accessToken.create({
         data: {
-            userId: user.id,
-            accessToken,
-            refreshToken,
+            value: tokenValue,
+            expiresAt,
+            userId,
         }
     });
 
     return token;
 }
 
-export function validateToken(accessToken: string): boolean {
+/**
+ * Generates a new refresh token
+ */
+export async function generateRefreshToken(userId: User['id']): Promise<RefreshToken> {
+    const tokenLifetime = process.env.REFRESH_TOKEN_EXPIRY ?? '30 days';
+
+    const { expiresAt } = generateExpiryTime(tokenLifetime);
+
+    const existingToken = await prisma.refreshToken.findUnique({ where: { userId } });
+
+    let token: RefreshToken|undefined;
+
+    // Upsert the existing token (could still exist if someone cleared cookies rather than actually logging out)
+    if (existingToken) {
+        token = await prisma.refreshToken.update({
+            where: { id: existingToken.id },
+            data: { expiresAt }
+        });
+    } else {
+        token = await prisma.refreshToken.create({
+            data: {
+                expiresAt,
+                userId,
+            }
+        });
+    }
+
+    return token;
+}
+
+/**
+ * Verify a valid JWT in an access token's value
+ */
+export function validateToken(accessTokenValue: AccessToken['value']): boolean {
     const secret = getSecret();
-    if (!secret) return false;
 
     try {
-        jwt.verify(accessToken, secret)
+        jwt.verify(accessTokenValue, secret);
         return true;
     } catch (err) {
         return false;
     }
 }
 
-export async function refreshToken(refreshToken: string): Promise<Token | undefined> {
-    const secret: string|undefined = process.env.TOKEN_SECRET;
-
-    if (!secret) {
-        return undefined;
-    }
-
-    try {
-        jwt.verify(refreshToken, secret)
-    } catch(err) {
-        return undefined;
-    }
-
-    const token = await prisma.token.findUnique({
-        where: {
-            refreshToken
-        }
-    });
-
-    if (!token) return undefined;
-
-    const newAccessToken = generateAccessToken(token.userId);
-    const newRefreshToken = generateRefreshToken(token.userId);
-
-    if (!newAccessToken || !newRefreshToken) return undefined;
-
-    const newToken = await prisma.token.update({
-        where: {
-            refreshToken
-        },
-        data: {
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
-        }
-    });
-
-    return newToken;
-}
+interface ResponseOptions {
+    res: Response;
+    accessTokenValue: string|undefined;
+    refreshTokenId: string|undefined;
+    redirectUrl?: string;
+};
 
 /**
- * A higher order function that wraps a response to send back
- * authentication cookies automatically
- *
- * This method can also be used to clear cookies by not passing through a token
+ * A higher order function that wraps a response to send back authentication cookies
+ * This method can also be used to clear cookies by not passing through tokens
  */
-export function withCookies(res: Response, token: Token | undefined = undefined): Response {
+export function setAuthCookies({ res, accessTokenValue: accessToken, refreshTokenId: refreshToken, redirectUrl }: ResponseOptions) {
     const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         domain: process.env.COOKIE_DOMAIN,
+    };
+
+    let modifiedResponse: Response = res;
+
+    if (accessToken && refreshToken) {
+        modifiedResponse
+            // accessToken.value is a JWT
+            .cookie('access_token', accessToken, cookieOptions)
+            // refreshToken.id is a CUID (smaller than JWTs), don't want every request having huge amounts of data
+            .cookie('refresh_token', refreshToken, cookieOptions);
+    } else {
+        modifiedResponse.clearCookie('access_token').clearCookie('refresh_token');
     }
 
-    if (token) {
-        return res
-            .cookie('access_token', token.accessToken, cookieOptions)
-            .cookie('refresh_token', token.refreshToken, cookieOptions)
-    } else {
-        return res.clearCookie('access_token').clearCookie('refresh_token');
+    if (redirectUrl) {
+        return modifiedResponse.redirect(redirectUrl);
     }
+
+    return modifiedResponse;
 }
 
 /**
@@ -147,16 +142,33 @@ export function parseRequestTokens(req: Request): { accessToken: string|undefine
         }
     }
 
+    // Refresh tokens will only exist on cookies (i.e. not passed by the client)
     if (req.cookies.refresh_token && req.cookies.refresh_token !== 'undefined') {
         refreshToken = req.cookies.refresh_token;
     }
 
-    // Now search for a refresh token in the POST body
-    if (!refreshToken && req.method === 'POST') {
-        if (req.body.refreshToken) {
-            refreshToken = req.body.refreshToken;
-        }
+    return { accessToken, refreshToken };
+}
+
+interface TokenExpiry {
+    expiresIn: number;
+    expiresAt: Date;
+}
+
+/**
+ * Turns environment variables like "in 3 hours" to a difference between now and then in milliseconds
+ */
+function generateExpiryTime(tokenLifetime: string, expireAtEndOfDay: boolean = false): TokenExpiry {
+    // Create a new date X + tokenLifetime
+    let expiresAt = addMilliseconds(new Date, ms(tokenLifetime));
+
+    if (expireAtEndOfDay) {
+        // Optionally expire at the end of the day
+        expiresAt = endOfDay(expiresAt);
     }
 
-    return { accessToken, refreshToken };
+    // Get the difference between our expiryTime and now, and return the milliseconds
+    const expiresIn = differenceInMilliseconds(expiresAt, new Date);
+
+    return { expiresIn, expiresAt };
 }

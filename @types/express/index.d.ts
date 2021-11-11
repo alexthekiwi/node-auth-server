@@ -4,7 +4,9 @@ declare global {
     namespace Express {
         interface Request {
             user?: UserDAO;
-            accessToken?: string
+            accessToken?: string;
+            refreshToken?: string;
+            passwordResetToken?: string;
         }
     }
 }

@@ -8,6 +8,12 @@ const router = express.Router();
 router.get('/', authenticated, index);
 router.get('/:id', authenticated, show);
 router.get('/me', authenticated, me);
-router.post('/', store)
+
+// Make the create user route non-authenticated in other environments
+if (process.env.APP_ENV === 'production') {
+    router.post('/', authenticated, store)
+} else {
+    router.post('/', store)
+}
 
 export default router;

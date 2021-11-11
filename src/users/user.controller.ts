@@ -1,12 +1,11 @@
 import { Request, Response } from 'express'
-import { Prisma, PrismaClient } from '.prisma/client';
+import { Prisma } from '.prisma/client';
 import bcrypt from 'bcrypt';
-import { generateTokens, withCookies } from '../auth/auth.services';
-
-const prisma = new PrismaClient;
+import { prisma } from '../lib/prisma';
+import { setAuthCookies } from '../auth/auth.services';
 
 export interface UserDAO {
-    id: number;
+    id: string;
     name: string;
     email: string;
 }
@@ -17,16 +16,22 @@ interface UserDTO {
     password?: string;
 }
 
+/**
+ * Define what fields we return from the database
+ */
 function getSelectFields() {
     return { id: true, email: true, name: true };
 }
 
+/**
+ * List all users
+ */
 export async function index(req: Request, res: Response) {
     const { id, name, email } = req.query;
-    const q: { id?: number; name?: string; email?: string; } = {};
+    const q: { id?: string; name?: string; email?: string; } = {};
     let where;
 
-    if (id) q.id = parseInt(id.toString());
+    if (id) q.id = id.toString();
     if (name) q.name = (name.toString());
     if (email) q.email = (email.toString());
 
@@ -44,13 +49,16 @@ export async function index(req: Request, res: Response) {
     return res.json(users);
 }
 
+/**
+ * Show a particular user
+ */
 export async function show(req: Request, res: Response) {
     const id: string = req.params.id;
 
     const user = await prisma.user.findUnique({
         select: getSelectFields(),
         where: {
-            id: parseInt(id)
+            id,
         }
     });
 
@@ -61,10 +69,22 @@ export async function show(req: Request, res: Response) {
     }
 }
 
+/**
+ * Get my details
+ */
 export async function me(req: Request, res: Response) {
-    return res.send(req.user);
+    const response = setAuthCookies({res, accessTokenValue: req.accessToken, refreshTokenId: req.refreshToken });
+
+    if (response) {
+        return response.send(req.user);
+    }
+
+    res.status(500).send();
 }
 
+/**
+ * Create a new user
+ */
 export async function store(req: Request, res: Response) {
     const { name, email, password }: UserDTO = req.body;
 
@@ -82,14 +102,8 @@ export async function store(req: Request, res: Response) {
         // Create a user
         const user = await prisma.user.create({ data });
 
-        // Generate tokens for this user so they're instantly logged in
-        const token = await generateTokens(user);
-
-        if (token) {
-            return withCookies(res, token).send({ user, token })
-        } else {
-            return res.status(500).send('Error generating auth token');
-        }
+        // Send back the user
+        return res.status(201).send({ user });
     } catch(err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError) {
             return res.status(400).send(err.message);

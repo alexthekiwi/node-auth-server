@@ -1,23 +1,24 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 
-import { generateTokens, withCookies, refreshToken, parseRequestTokens } from './auth.services';
+import { setAuthCookies, generateAccessToken, generateRefreshToken } from './auth.services';
 import { prisma } from '../lib/prisma';
-import { Token } from '.prisma/client';
 
+/**
+ * Shows the login form
+ */
+export async function index(req: Request, res: Response) {
+    return res.render('login');
+}
 
 /**
  * Creates a new logged in session
- *
- * @param req
- * @param res
- * @returns
  */
 export async function store(req: Request, res: Response) {
-    const { email, password } = req.query;
+    const { email, password } = req.body;
 
     // Check required inputs
-    if(!email || !password) {
+    if (!email || !password) {
         return loginFail(res);
     }
 
@@ -38,22 +39,29 @@ export async function store(req: Request, res: Response) {
 
     // Compare the input with hashed password
     try {
-        const pwCorrect = await bcrypt.compare(password, user.password);
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
-        if (pwCorrect === true) {
-            // Generate a token for the user
-            const token = await generateTokens(user);
+        if (isPasswordCorrect) {
+            // Generate tokens for the user
+            const accessToken = await generateAccessToken(user.id);
+            const refreshToken = await generateRefreshToken(user.id);
 
-            if (token) {
+            if (accessToken && refreshToken) {
+                // Select only certain fields from the user
                 const { id, name, email } = user;
-                const sanitisedUser = {id, name, email};
+                const sanitisedUser = { id, name, email };
 
-                return withCookies(res, token).send({ user: sanitisedUser, token })
+                // Set our cookies and return the user, along with the access token
+                const response = setAuthCookies({ res, accessTokenValue: accessToken.value, refreshTokenId: refreshToken.id });
+
+                if (response) {
+                    response.send({ user: sanitisedUser, accessToken });
+                }
             } else {
                 return loginFail(res);
             }
         } else {
-            loginFail(res);;
+            loginFail(res);
         }
     } catch(err) {
         return loginFail(res);
@@ -62,48 +70,39 @@ export async function store(req: Request, res: Response) {
 
 /**
  * Destroys all logged in sessions for a user
- *
- * @param req
- * @param res
  */
 export async function destroy(req: Request, res: Response) {
+    const { redirectUrl: redirectOnLogout } = req.query;
+
     // Kill all of this user's tokens from the database
-    await prisma.token.deleteMany({
+    await prisma.accessToken.deleteMany({
         where: {
             userId: req.user?.id
         }
     });
 
-    // Set all cookies to null by not passing through a token
-    return withCookies(res).send({ message: 'Logout successful' });
-}
+    await prisma.refreshToken.deleteMany({
+        where: {
+            userId: req.user?.id
+        }
+    });
 
-/**
- * The handler for refreshing an access token
- *
- * @param req
- * @param res
- */
-export async function refresh(req: Request, res: Response) {
-    const { refreshToken: oldRefreshToken } = parseRequestTokens(req);
-    let updatedToken: Token|undefined;
+    let redirectUrl: string|undefined;
 
-    if (oldRefreshToken) {
-        updatedToken = await refreshToken(oldRefreshToken);
+    if (redirectOnLogout && typeof redirectOnLogout === 'string') {
+        redirectUrl = redirectOnLogout;
     }
 
-    if (updatedToken) {
-        return withCookies(res, updatedToken).send({ token: updatedToken });
-    } else {
-        res.status(403).send();
+    // Set all cookies to null
+    const response = setAuthCookies({ res, accessTokenValue: undefined, refreshTokenId: undefined, redirectUrl });
+
+    if (response) {
+        return response.send({ message: 'Logout successful' });
     }
 }
 
 /**
  * Generic login error function
- *
- * @param res {Response}
- * @returns {Response}
  */
 function loginFail(res: Response) {
     return res.status(404).send('Invalid credentials supplied');

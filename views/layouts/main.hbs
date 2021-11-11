@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth</title>
+</head>
+
+<style>
+    @font-face {
+        font-family: 'Gabriela';
+        src: url('/fonts/GabrielaStencil-Black.woff') format('woff');
+        font-display: swap;
+        font-weight: 700;
+    }
+    @font-face {
+        font-family: 'MuseoSansRounded';
+        src: url('/fonts/MuseoSansRounded-300.woff') format('woff');
+        font-display: swap;
+        font-weight: 300;
+    }
+    @font-face {
+        font-family: 'MuseoSansRounded';
+        src: url('/fonts/MuseoSansRounded-700.woff') format('woff');
+        font-display: swap;
+        font-weight: 700;
+    }
+    @font-face {
+        font-family: 'MuseoSansRounded';
+        src: url('/fonts/MuseoSansRounded-900.woff') format('woff');
+        font-display: swap;
+        font-weight: 900;
+    }
+</style>
+
+<body class="h-full">
+    <!-- TailwindCSS via CDN -->
+    <script src="https://unpkg.com/tailwindcss-jit-cdn"></script>
+
+    <!-- TailwindCSS config -->
+    <script type="tailwind-config">
+    {
+        theme: {
+            fontFamily: {
+                sans: ["MuseoSansRounded", "Helvetica", "arial", "sans-serif"],
+                serif: ["Gabriela", "Georgia", "serif"],
+            },
+            container: {
+                center: true,
+                padding: "1.25rem",
+            },
+            extend: {
+                colors: {
+                    "teal": "#6fc7b6",
+                    "teal-xlight": "#f2f9f8",
+                    "teal-light": "#b8e1d9",
+                    "teal-dark": "#48aa97",
+                    "asphalt": "#2b3844",
+                    "gray-600": "#8a8c8e",
+                    "gray-700": "#666",
+                }
+            }
+        }
+    }
+    </script>
+    <main class="font-light h-full text-gray-700">
+        {{{ body }}}
+    </main>
+</body>
+
+</html>
