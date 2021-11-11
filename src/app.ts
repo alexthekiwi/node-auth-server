@@ -81,10 +81,14 @@ app.get('/', async (req: Request, res: Response) => {
                     }),
                 };
 
-                const ping = await fetch(client.callbackUrl, config);
+                try {
+                    const ping = await fetch(client.callbackUrl, config);
 
-                if (ping) {
-                    return setAuthCookies({ res, accessTokenValue, refreshTokenId, redirectUrl });
+                    if (ping) {
+                        return setAuthCookies({ res, accessTokenValue, refreshTokenId, redirectUrl });
+                    }
+                } catch(error) {
+                    console.log(`POST request to ${client.callbackUrl} failed`);
                 }
             } else {
                 // Invalid client ID, stop here and force a login (avoiding an infinite loop)
