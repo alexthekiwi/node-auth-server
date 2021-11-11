@@ -1,13 +1,13 @@
 import express, { Request, Response, Router } from 'express';
 
 import { index, store, destroy } from './auth.controller';
-import { authenticated, guest } from './middleware';
+import { authenticated, guest, authenticatedWithRedirect } from './middleware';
 
 const router: Router = express.Router();
 
 // View routes
 router.get('/login', guest, index);
-router.get('/dashboard', authenticated, function(req: Request, res: Response) {
+router.get('/dashboard', authenticatedWithRedirect, function(req: Request, res: Response) {
     return res.render('dashboard', { user: req.user });
 });
 
