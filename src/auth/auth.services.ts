@@ -26,12 +26,16 @@ export async function generateAccessToken(userId: User['id']): Promise<AccessTok
         return existing;
     }
 
-    // TODO: This can error by creating duplicates somehow?
-    const token = await prisma.accessToken.create({
-        data: {
+    // Update or create a token
+    const token = await prisma.accessToken.upsert({
+        where: { value: tokenValue },
+        create: {
             value: tokenValue,
             expiresAt,
             userId,
+        },
+        update: {
+            expiresAt,
         }
     });
 
